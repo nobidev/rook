@@ -56,6 +56,7 @@ const (
 	discoverIntervalEnv                   = "ROOK_DISCOVER_DEVICES_INTERVAL"
 	defaultDiscoverInterval               = "60m"
 	discoverDaemonResourcesEnv            = "DISCOVER_DAEMON_RESOURCES"
+	discoverPathDeviceFilterEnv           = "DISCOVER_PATH_DEVICE_FILTER"
 )
 
 var logger = capnslog.NewPackageLogger("github.com/rook/rook", "op-discover")
@@ -234,6 +235,12 @@ func (d *Discover) createDiscoverDaemonSet(ctx context.Context, namespace, disco
 	if controller.LoopDevicesAllowed() {
 		ds.Spec.Template.Spec.Containers[0].Env = append(ds.Spec.Template.Spec.Containers[0].Env,
 			v1.EnvVar{Name: "CEPH_VOLUME_ALLOW_LOOP_DEVICES", Value: "true"})
+	}
+
+	discoverPathDeviceFilter := k8sutil.GetValue(data, discoverPathDeviceFilterEnv, "")
+	if discoverPathDeviceFilter != "" {
+		ds.Spec.Template.Spec.Containers[0].Env = append(ds.Spec.Template.Spec.Containers[0].Env,
+			v1.EnvVar{Name: discoverPathDeviceFilterEnv, Value: discoverPathDeviceFilter})
 	}
 
 	_, err = d.clientset.AppsV1().DaemonSets(namespace).Create(ctx, ds, metav1.CreateOptions{})
