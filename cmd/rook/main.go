@@ -37,6 +37,7 @@ func addCommands() {
 	rook.RootCmd.AddCommand(
 		version.VersionCmd,
 		discoverCmd,
+		discoverTestCmd,
 		KeyManagementCmd,
 		// backend commands
 		ceph.Cmd,
