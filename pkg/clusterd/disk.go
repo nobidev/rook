@@ -23,6 +23,7 @@ import (
 	"path"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/coreos/pkg/capnslog"
 
@@ -32,6 +33,7 @@ import (
 
 var (
 	logger         = capnslog.NewPackageLogger("github.com/rook/rook", "inventory")
+	isLoop         = regexp.MustCompile("^loop[0-9]+$")
 	isRBD          = regexp.MustCompile("^rbd[0-9]+p?[0-9]{0,}$")
 	listAllDevices = "all"
 
@@ -56,7 +58,34 @@ func GetDeviceEmpty(device *sys.LocalDisk) bool {
 }
 
 func ignoreDevice(d string) bool {
-	return isRBD.MatchString(d)
+	if isRBD.MatchString(d) {
+		return true
+	}
+	if !getAllowLoopDevices() && isLoop.MatchString(d) {
+		return true
+	}
+	return false
+}
+
+func allowPathDeviceByFilter(d *sys.LocalDisk) bool {
+	discoverPathDeviceFilter := os.Getenv("DISCOVER_PATH_DEVICE_FILTER")
+	if discoverPathDeviceFilter == "" {
+		return true
+	}
+	regex, err := regexp.Compile(discoverPathDeviceFilter)
+	if err != nil {
+		logger.Warningf("compile filter %s error: %v", discoverPathDeviceFilter, err)
+		return false
+	}
+	if regex.MatchString(d.RealPath) {
+		return true
+	}
+	for _, item := range strings.Split(d.DevLinks, " ") {
+		if regex.MatchString(item) {
+			return true
+		}
+	}
+	return false
 }
 
 func DiscoverDevicesWithFilter(executor exec.Executor, deviceFilter, metaDevice string) ([]*sys.LocalDisk, error) {
@@ -67,10 +96,10 @@ func DiscoverDevicesWithFilter(executor exec.Executor, deviceFilter, metaDevice 
 	}
 
 	for _, d := range devices {
-		// Ignore RBD device
+		// Ignore RBD & Loop device
 		if ignoreDevice(d) {
 			// skip device
-			logger.Warningf("skipping rbd device %q", d)
+			logger.Warningf("skipping device %q", d)
 			continue
 		}
 
@@ -111,7 +140,9 @@ func DiscoverDevicesWithFilter(executor exec.Executor, deviceFilter, metaDevice 
 			}
 		}
 
-		disks = append(disks, disk)
+		if allowPathDeviceByFilter(disk) {
+			disks = append(disks, disk)
+		}
 	}
 	logger.Debug("discovered disks are:")
 	for _, disk := range disks {
