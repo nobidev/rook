@@ -290,24 +290,24 @@ func (c *Cluster) setLoginCredentials(password string) error {
 	// Note: this command will succeed in case the user <dashboardUsername> already
 	// exists however it will not update the password. That why we need to explicitly
 	// call the ac-user-set-password command to ensure the password is updated correctly
-	args = []string{"dashboard", "ac-user-create", dashboardUsername, "-i", file.Name(), "administrator"}
-	_, err = client.ExecuteCephCommandWithRetry(func() (string, []byte, error) {
+	args = []string{"dashboard", "ac-user-create", dashboardUsername, "-i", file.Name(), "administrator", "--force-password"}
+	output, err := client.ExecuteCephCommandWithRetry(func() (string, []byte, error) {
 		output, err := client.NewCephCommand(c.context, c.clusterInfo, args).RunWithTimeout(exec.CephCommandsTimeout)
 		return "create dashboard user", output, err
 	}, 5, dashboardInitWaitTime)
 	if err != nil {
-		return errors.Wrapf(err, "failed to create dashboard user %q", dashboardUsername)
+		return errors.Wrapf(err, "failed to create dashboard user %q: %s", dashboardUsername, output)
 	}
 
 	// Set dashboard user password
 	// > ceph dashboard ac-user-set-password <username> -i <path-to-password-file>
-	args = []string{"dashboard", "ac-user-set-password", dashboardUsername, "-i", file.Name()}
-	_, err = client.ExecuteCephCommandWithRetry(func() (string, []byte, error) {
+	args = []string{"dashboard", "ac-user-set-password", dashboardUsername, "-i", file.Name(), "--force-password"}
+	output, err = client.ExecuteCephCommandWithRetry(func() (string, []byte, error) {
 		output, err := client.NewCephCommand(c.context, c.clusterInfo, args).RunWithTimeout(exec.CephCommandsTimeout)
 		return "set dashboard user password", output, err
 	}, 5, dashboardInitWaitTime)
 	if err != nil {
-		return errors.Wrapf(err, "failed to set password for user %q", dashboardUsername)
+		return errors.Wrapf(err, "failed to set password for user %q: %s", dashboardUsername, output)
 	}
 
 	logger.Info("successfully set ceph dashboard creds")
